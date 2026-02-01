@@ -1,0 +1,73 @@
+function startupFcn(app)
+    % Open serial connection
+    app.s = serialport("COM3",9600);
+    configureTerminator(app.s,"LF");
+    flush(app.s);
+
+    % Create timer to constantly read Arduino
+    app.readTimer = timer( ...
+        'ExecutionMode','fixedRate', ...
+        'Period',0.05, ...          % 50 ms
+        'TimerFcn',@(~,~)readButton(app));
+
+    start(app.readTimer);
+
+    % Initial UI state
+    app.ColorLabel.Text = "READY";
+    app.ColorLabel.FontColor = [0 0 0];
+    app.ResultLabel.Text = "Press START";
+end
+
+properties (Access = private)
+    s               % Serial port
+    correctColor    % "R" or "G"
+    startTime       % tic timer
+    gameActive = false
+    readTimer       % Timer object
+end
+
+function StartButtonPushed(app, event)
+    % Reset UI
+    app.ResultLabel.Text = "";
+    app.ColorLabel.Text = "WAIT...";
+    app.ColorLabel.FontColor = [0 0 0];
+    app.gameActive = false;
+
+    % Random delay (anti-cheat)
+    pause(rand*2 + 1);   % 1–3 seconds
+
+    % Choose color in MATLAB
+    if rand < 0.5
+        app.correctColor = "R";
+        app.ColorLabel.Text = "RED";
+        app.ColorLabel.FontColor = [1 0 0];
+    else
+        app.correctColor = "G";
+        app.ColorLabel.Text = "GREEN";
+        app.ColorLabel.FontColor = [0 0.6 0];
+    end
+
+    % Start timing
+    app.startTime = tic;
+    app.gameActive = true;
+end
+
+function readButton(app)
+    if ~app.gameActive
+        return
+    end
+
+    if app.s.NumBytesAvailable > 0
+        pressed = strtrim(readline(app.s));  % "R" or "G"
+        reactionTime = toc(app.startTime) * 1000; % ms
+
+        if pressed == app.correctColor
+            app.ResultLabel.Text = ...
+                "✅ CORRECT — " + round(reactionTime) + " ms";
+        else
+            app.ResultLabel.Text = "❌ WRONG BUTTON!";
+        end
+
+        app.gameActive = false;
+    end
+end
